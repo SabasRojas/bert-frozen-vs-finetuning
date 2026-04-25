@@ -2,7 +2,7 @@
 
 **Authors:** Sabas Rojas and Daniel Duru
 
-## 3.3.1 Introduction
+## Introduction
 
 This repository is our class re-implementation project based on BERT for text classification.
 
@@ -15,13 +15,13 @@ Paper used: Devlin et al., 2019, *BERT: Pre-training of Deep Bidirectional Trans
 
 Main contribution of the paper: strong language understanding results from bidirectional Transformer pre-training.
 
-## 3.3.2 Chosen Result
+## Chosen Result
 
 The key result we want to reproduce is the difference between frozen BERT and full fine-tuning on a text classification task.
 
 It matters because it shows the compute/performance trade-off in transfer learning.
 
-## 3.3.3 GitHub Contents
+## Repo Contents
 
 Project structure:
 
@@ -33,7 +33,7 @@ Project structure:
 - `README.md`: project description and reproduction guide
 - `LICENSE`: MIT license
 
-## 3.3.4 Re-implementation Details
+## Re-implementation Details
 
 Current implementation (early phase):
 
@@ -49,7 +49,7 @@ Planned next additions:
 - Evaluation script and metric comparison
 - Additional dataset experiments
 
-## 3.3.5 Reproduction Steps
+## Reproduction Steps
 
 ### Dependencies
 
@@ -95,7 +95,7 @@ Recommended:
 
 - CUDA-enabled GPU for faster training iterations.
 
-## 3.3.6 Results/Insights
+## Current Results
 
 Current repository state provides:
 
@@ -108,17 +108,17 @@ What to expect after running now:
 - Loss logs per configured interval and average epoch loss
 - No final benchmark comparison yet (pending)
 
-## 3.3.7 Conclusion
+## Conclusion
 
 This repo currently contains the first part of the implementation (baseline setup + training). The next stages are fine-tuning, evaluation, and final analysis.
 
-## 3.3.8 References
+## References
 
 1. Devlin, J., Chang, M.-W., Lee, K., & Toutanova, K. (2019). *BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding.* NAACL-HLT.
 2. Hugging Face Transformers Documentation: [https://huggingface.co/docs/transformers](https://huggingface.co/docs/transformers)
 3. Hugging Face Datasets Documentation: [https://huggingface.co/docs/datasets](https://huggingface.co/docs/datasets)
 4. PyTorch Documentation: [https://pytorch.org/docs/stable/index.html](https://pytorch.org/docs/stable/index.html)
 
-## 3.3.9 Acknowledgements
+## Acknowledgements
 
 This work was done as part of course re-implementation coursework.
