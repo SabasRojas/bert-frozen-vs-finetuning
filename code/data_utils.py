@@ -41,7 +41,8 @@ def build_dataloaders(
     tokenizer_name: str,
     max_length: int,
     batch_size: int,
-) -> Tuple[DataLoader, int]:
+) -> Tuple[DataLoader, DataLoader, int]:
+    """Returns (train_loader, test_loader, num_labels)."""
     dataset_path, dataset_config, text_key, label_key = _dataset_spec(dataset_name)
     raw = load_dataset(dataset_path, dataset_config) if dataset_config else load_dataset(dataset_path)
 
@@ -61,8 +62,15 @@ def build_dataloaders(
         collate_fn=collator,
     )
 
+    test_loader = DataLoader(
+        tokenized["test"],
+        batch_size=batch_size,
+        shuffle=False,
+        collate_fn=collator,
+    )
+
     num_labels = int(raw["train"].features["label"].num_classes)
-    return train_loader, num_labels
+    return train_loader, test_loader, num_labels
 
 
 def move_batch_to_device(batch: Dict[str, torch.Tensor], device: torch.device) -> Dict[str, torch.Tensor]:
