@@ -2,3 +2,5 @@ torch
 transformers
 datasets
 tqdm
+scikit-learn
+matplotlib

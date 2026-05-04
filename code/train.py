@@ -13,15 +13,13 @@ from code.trainer import train_model
 
 
 def parse_args() -> TrainConfig:
-    parser = argparse.ArgumentParser(
-        description="Train frozen BERT baseline or full fine-tuning on AG News."
-    )
+    parser = argparse.ArgumentParser(description="AG News: frozen BERT vs finetune")
     parser.add_argument("--dataset", choices=["ag_news"], default="ag_news")
     parser.add_argument(
         "--mode",
         choices=["frozen", "finetune", "both"],
         default="both",
-        help="'frozen' = linear probe only, 'finetune' = full BERT, 'both' = run and compare",
+        help="frozen = head only, finetune = all weights, both = do both",
     )
     parser.add_argument("--epochs", type=int, default=3)
     parser.add_argument("--batch_size", type=int, default=16)
@@ -56,7 +54,7 @@ def run_experiment(
     test_loader,
     num_labels: int,
     freeze_bert: bool,
-) -> Tuple[List[Dict], float]:
+) -> Tuple[List[Dict], float, float]:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     mode_label = "frozen" if freeze_bert else "finetune"
 
@@ -70,7 +68,7 @@ def run_experiment(
     total = sum(p.numel() for p in model.parameters())
     print(f"[{mode_label}] trainable params: {trainable:,} / {total:,}")
 
-    loss_log, test_acc = train_model(
+    loss_log, test_acc, test_f1 = train_model(
         model=model,
         train_loader=train_loader,
         test_loader=test_loader,
@@ -81,7 +79,7 @@ def run_experiment(
         mode_label=mode_label,
     )
 
-    return loss_log, test_acc
+    return loss_log, test_acc, test_f1
 
 
 def save_results(
@@ -91,15 +89,15 @@ def save_results(
 ) -> None:
     os.makedirs(out_dir, exist_ok=True)
 
-    # ── summary table ──────────────────────────────────────────────────────
     summary_path = os.path.join(out_dir, "comparison_summary.csv")
     with open(summary_path, "w", newline="") as f:
-        writer = csv.DictWriter(f, fieldnames=["mode", "final_test_acc"])
+        writer = csv.DictWriter(
+            f, fieldnames=["mode", "final_test_acc", "final_test_f1_weighted"]
+        )
         writer.writeheader()
         writer.writerows(results)
-    print(f"\nSaved summary  → {summary_path}")
+    print(f"\nSaved summary to {summary_path}")
 
-    # ── per-mode loss logs ─────────────────────────────────────────────────
     for mode_label, log in loss_logs.items():
         log_path = os.path.join(out_dir, f"loss_log_{mode_label}.csv")
         if not log:
@@ -108,7 +106,7 @@ def save_results(
             writer = csv.DictWriter(f, fieldnames=log[0].keys())
             writer.writeheader()
             writer.writerows(log)
-        print(f"Saved loss log → {log_path}")
+        print(f"Saved loss log to {log_path}")
 
 
 def main() -> None:
@@ -130,20 +128,39 @@ def main() -> None:
     run_finetune = config.mode in ("finetune", "both")
 
     if run_frozen:
-        log, acc = run_experiment(config, train_loader, test_loader, num_labels, freeze_bert=True)
-        summary_rows.append({"mode": "frozen", "final_test_acc": round(acc, 4)})
+        log, acc, f1 = run_experiment(
+            config, train_loader, test_loader, num_labels, freeze_bert=True
+        )
+        summary_rows.append(
+            {
+                "mode": "frozen",
+                "final_test_acc": round(acc, 4),
+                "final_test_f1_weighted": round(f1, 4),
+            }
+        )
         loss_logs["frozen"] = log
 
     if run_finetune:
-        log, acc = run_experiment(config, train_loader, test_loader, num_labels, freeze_bert=False)
-        summary_rows.append({"mode": "finetune", "final_test_acc": round(acc, 4)})
+        log, acc, f1 = run_experiment(
+            config, train_loader, test_loader, num_labels, freeze_bert=False
+        )
+        summary_rows.append(
+            {
+                "mode": "finetune",
+                "final_test_acc": round(acc, 4),
+                "final_test_f1_weighted": round(f1, 4),
+            }
+        )
         loss_logs["finetune"] = log
 
     save_results(summary_rows, loss_logs)
 
-    print("\n=== Final comparison ===")
+    print("\nfinal comparison:")
     for row in summary_rows:
-        print(f"  {row['mode']:>10}  test_acc={row['final_test_acc']:.4f}")
+        print(
+            f"  {row['mode']:>10}  acc={row['final_test_acc']:.4f}  "
+            f"f1_weighted={row['final_test_f1_weighted']:.4f}"
+        )
 
     print("\nDone.")
 

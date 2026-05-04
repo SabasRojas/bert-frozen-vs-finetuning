@@ -7,13 +7,10 @@ from transformers import AutoTokenizer, DataCollatorWithPadding
 
 
 def _dataset_spec(dataset_name: str) -> Tuple[str, str | None, str, str]:
-    """
-    Returns:
-        (dataset_path, dataset_config, text_key, label_key)
-    """
+    # ag_news: hf path, no config name, text field, label field
     if dataset_name == "ag_news":
         return "ag_news", None, "text", "label"
-    raise ValueError("Only ag_news is wired in this phase.")
+    raise ValueError(f"unknown dataset: {dataset_name} (we only use ag_news)")
 
 
 def _tokenize_dataset(
@@ -42,7 +39,6 @@ def build_dataloaders(
     max_length: int,
     batch_size: int,
 ) -> Tuple[DataLoader, DataLoader, int]:
-    """Returns (train_loader, test_loader, num_labels)."""
     dataset_path, dataset_config, text_key, label_key = _dataset_spec(dataset_name)
     raw = load_dataset(dataset_path, dataset_config) if dataset_config else load_dataset(dataset_path)
 
@@ -74,4 +70,8 @@ def build_dataloaders(
 
 
 def move_batch_to_device(batch: Dict[str, torch.Tensor], device: torch.device) -> Dict[str, torch.Tensor]:
-    return {k: v.to(device) for k, v in batch.items()}
+    out = {k: v.to(device) for k, v in batch.items()}
+    # HF loss wants "labels"; hf datasets often use "label"
+    if "label" in out and "labels" not in out:
+        out["labels"] = out.pop("label")
+    return out

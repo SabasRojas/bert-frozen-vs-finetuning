@@ -1,4 +1,3 @@
-import torch
 from transformers import AutoModelForSequenceClassification
 
 
@@ -11,7 +10,3 @@ def build_model(model_name: str, num_labels: int, freeze_bert: bool) -> AutoMode
                 parameter.requires_grad = False
 
     return model
-
-
-def trainable_parameters(model: torch.nn.Module):
-    return [p for p in model.parameters() if p.requires_grad]

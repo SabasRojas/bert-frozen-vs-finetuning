@@ -1,6 +1,7 @@
 from typing import Dict, List, Tuple
 
 import torch
+from sklearn.metrics import f1_score
 from torch.optim import AdamW
 from tqdm.auto import tqdm
 
@@ -16,23 +17,16 @@ def train_model(
     epochs: int,
     log_every_steps: int,
     mode_label: str,
-) -> Tuple[List[Dict], float]:
-    """
-    Trains model and evaluates after every epoch.
-
-    Returns:
-        loss_log  - list of {"epoch", "step", "train_loss"} dicts
-        test_acc  - final test accuracy (0-1)
-    """
+) -> Tuple[List[Dict], float, float]:
+    # returns loss rows, last epoch acc, last epoch weighted f1
     optimizer = AdamW(model.parameters(), lr=learning_rate)
 
     model.to(device)
 
     loss_log: List[Dict] = []
 
-    print(f"\n=== Training mode: {mode_label} ===")
+    print(f"\n--- {mode_label} ---")
     for epoch in range(epochs):
-        # ── train ──────────────────────────────────────────────────────────
         model.train()
         epoch_loss = 0.0
         progress = tqdm(train_loader, desc=f"{mode_label} | epoch {epoch + 1}/{epochs}", leave=False)
@@ -57,10 +51,9 @@ def train_model(
         avg_loss = epoch_loss / max(len(train_loader), 1)
         print(f"[{mode_label}] epoch={epoch + 1} avg_train_loss={avg_loss:.4f}")
 
-        # ── eval ───────────────────────────────────────────────────────────
-        test_acc = _evaluate(model, test_loader, device, mode_label, epoch, epochs)
+        test_acc, test_f1 = _evaluate(model, test_loader, device, mode_label, epoch, epochs)
 
-    return loss_log, test_acc
+    return loss_log, test_acc, test_f1
 
 
 def _evaluate(
@@ -70,19 +63,21 @@ def _evaluate(
     mode_label: str,
     epoch: int,
     epochs: int,
-) -> float:
+) -> Tuple[float, float]:
     model.eval()
-    correct = 0
-    total = 0
+    all_preds: List[int] = []
+    all_labels: List[int] = []
 
     with torch.no_grad():
         for batch in tqdm(test_loader, desc=f"{mode_label} | eval epoch {epoch + 1}/{epochs}", leave=False):
             batch = move_batch_to_device(batch, device)
             outputs = model(**batch)
             preds = outputs.logits.argmax(dim=-1)
-            correct += (preds == batch["labels"]).sum().item()
-            total += len(batch["labels"])
+            all_preds.extend(preds.cpu().tolist())
+            all_labels.extend(batch["labels"].cpu().tolist())
 
-    acc = correct / total if total > 0 else 0.0
-    print(f"[{mode_label}] epoch={epoch + 1} test_acc={acc:.4f}")
-    return acc
+    total = len(all_labels)
+    acc = sum(p == l for p, l in zip(all_preds, all_labels)) / total if total > 0 else 0.0
+    f1 = float(f1_score(all_labels, all_preds, average="weighted", zero_division=0))
+    print(f"[{mode_label}] epoch={epoch + 1} test_acc={acc:.4f} test_f1_weighted={f1:.4f}")
+    return acc, f1

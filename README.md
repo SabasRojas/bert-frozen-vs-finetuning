@@ -1,124 +1,119 @@
-# BERT Frozen vs Fine-Tuning
+# CS 5365 — BERT re-implementation (frozen vs fine-tuning)
 
-**Authors:** Sabas Rojas and Daniel Duru
+Sabas Rojas, Daniel Duru · UTEP
+
+GitHub repo for our final project: we study **linear probing on frozen BERT** versus **full fine-tuning** on text classification, in the style of Devlin et al. (NAACL 2019). Code lives under `code/`; results we got are under `results/`.
+
+---
 
 ## Introduction
 
-This repository is our class re-implementation project based on BERT for text classification.
+This repo holds our **re-implementation / experiment** for the BERT paper (*BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding*, NAACL 2019). The paper’s idea is **masked LM + next-sentence pretraining**, then **fine-tuning** on downstream tasks — that “pretrain then fine-tune” setup became the usual NLP baseline.
 
-The full goal is to compare:
+We don’t re-run Google’s original TensorFlow training; we use **Hugging Face + PyTorch** and `bert-base-uncased` weights, which is the normal shortcut for a course project.
 
-- Frozen BERT (feature extraction)
-- Full fine-tuning
+---
 
-Paper used: Devlin et al., 2019, *BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding*.
+## Chosen result
 
-Main contribution of the paper: strong language understanding results from bidirectional Transformer pre-training.
+We tried to reproduce the **same kind of comparison** the paper motivates: using BERT as **fixed features + classifier** vs **updating all (or most) BERT weights** on a classification task. In the paper, the big headline numbers are on **GLUE** — see **Table 1** (GLUE test scores for BERT vs baselines). We’re not matching those GLUE digits; we run the **same experimental idea** on **AG News** (one of the tasks suggested in the project handout: SST-2, MRPC, or AG News).
 
-## Chosen Result
+Why it matters: it answers whether you can get away with only training a small head (cheap) or if you need full fine-tuning (slower, more GPU memory).
 
-The key result we want to reproduce is the difference between frozen BERT and full fine-tuning on a text classification task.
+---
 
-It matters because it shows the compute/performance trade-off in transfer learning.
+## Repository contents
 
-## Repo Contents
+| Path | What’s in it |
+|------|----------------|
+| `code/` | Training script, model helpers, optional loss plot |
+| `data/` | Note only — dataset isn’t stored in the repo (see below) |
+| `results/` | CSV metrics, loss logs, `loss_curves.png` if you plot |
+| `report/` | Drop **final report PDF** here for submission |
+| `poster/` | Drop **poster PDF** here for class |
+| `LICENSE` | MIT |
+| `.gitignore` | Python junk, venv, etc. |
 
-Project structure:
+---
 
-- `code/`: model setup, dataset pipeline, and training scripts
-- `data/`: dataset usage notes/instructions
-- `results/`: logs/checkpoints/metrics
-- `poster/`: poster files (later)
-- `report/`: report files (later)
-- `README.md`: project description and reproduction guide
-- `LICENSE`: MIT license
+## Re-implementation details
 
-## Re-implementation Details
+- **Model:** `bert-base-uncased`, classification head from Hugging Face `AutoModelForSequenceClassification`.
+- **Frozen run:** all parameters whose names start with `bert.` have `requires_grad=False`; only the head trains (linear probe on top of `[CLS]`-style pooled output).
+- **Fine-tune run:** full model trains.
+- **Data:** AG News (4-class). Train split for optimization; **test** split for accuracy / weighted F1.
+- **Optimizer:** AdamW, default lr `2e-5`, batch 16, max length 128 (see `code/train.py` for flags).
+- **Metrics:** accuracy and sklearn **weighted F1** on test after each epoch; last epoch is what we save to `comparison_summary.csv`.
 
-Current implementation (early phase):
+**What we changed vs the original paper:** we don’t implement MLM/NSP pretraining — we load pretrained weights. We use AG News instead of GLUE tasks in Table 1. Stack is PyTorch/HF, not the official `google-research/bert` repo.
 
-- Backbone model: `bert-base-uncased`
-- Dataset wired now: `ag_news`
-- Tokenization: `AutoTokenizer` with truncation and configurable max length
-- Training framework: PyTorch + Hugging Face Transformers
-- Current runnable mode: frozen baseline only
+**What was annoying:** long runs on CPU; making sure batches use `labels` (HF) instead of the dataset column name `label`.
 
-Planned next additions:
+---
 
-- Full fine-tuning mode
-- Evaluation script and metric comparison
-- Additional dataset experiments
+## Reproduction steps
 
-## Reproduction Steps
-
-### Dependencies
-
-- Python 3.9+ recommended
-- Core libraries:
-  - `torch`
-  - `transformers`
-  - `datasets`
-  - `tqdm`
-
-Install:
+**Install (venv recommended on Mac):**
 
 ```bash
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r code/requirements.txt
 ```
 
-### Run Commands
-
-Run current baseline:
+**Train both modes and write CSVs:**
 
 ```bash
-python3 -m code.train --dataset ag_news --epochs 1 --batch_size 16
+python3 -m code.train --dataset ag_news --mode both --epochs 3 --batch_size 16
 ```
 
-Useful command-line arguments:
+Useful flags: `--learning_rate`, `--max_length`, `--seed`, `--log_every_steps`, `--mode frozen` or `finetune` alone.
 
-- `--dataset {ag_news}`
-- `--epochs`
-- `--batch_size`
-- `--learning_rate`
-- `--max_length`
-- `--seed`
-- `--log_every_steps`
+**Optional plot** (needs matplotlib):
 
-### Computational Resources
+```bash
+python3 -m code.plot_losses
+```
 
-Minimum:
+**Hardware:** CPU works; fine-tuning is **much** faster on a GPU. 8–16 GB RAM is usually enough for this setup.
 
-- CPU works (but slower).
-- Around 8 GB RAM for small runs.
+---
 
-Recommended:
+## Results / insights
 
-- CUDA-enabled GPU for faster training iterations.
+**Our last run** (see `results/comparison_summary.csv`):
 
-## Current Results
+| Mode | Test accuracy | Weighted F1 |
+|------|----------------|-------------|
+| Frozen | 0.7404 | 0.7387 |
+| Fine-tune | 0.9463 | 0.9464 |
 
-Current repository state provides:
+So fine-tuning wins by ~20 points accuracy on our settings — same **direction** as in the paper’s story (task-specific fine-tuning strongly beats shallow use of frozen representations on hard tasks), even though our absolute numbers are on AG News, not GLUE Table 1.
 
-- Working frozen baseline training
-- Printed training loss
+Loss curves (logged every 20 steps during training):
 
-What to expect after running now:
+![train loss](results/loss_curves.png)
 
-- Download of dataset/model on first run
-- Loss logs per configured interval and average epoch loss
-- No final benchmark comparison yet (pending)
+If you clone fresh and run again, expect slightly different decimals (seed, hardware, library versions). You should still see fine-tune above frozen.
+
+---
 
 ## Conclusion
 
-This repo currently contains the first part of the implementation (baseline setup + training). The next stages are fine-tuning, evaluation, and final analysis.
+Frozen BERT is lighter but plateaus; full fine-tuning fits AG News much better for us. Lesson: if you can afford the GPU time, fine-tuning is worth it on this task. We’d need more runs (other seeds, SST-2) to claim anything broader.
+
+---
 
 ## References
 
-1. Devlin, J., Chang, M.-W., Lee, K., & Toutanova, K. (2019). *BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding.* NAACL-HLT.
-2. Hugging Face Transformers Documentation: [https://huggingface.co/docs/transformers](https://huggingface.co/docs/transformers)
-3. Hugging Face Datasets Documentation: [https://huggingface.co/docs/datasets](https://huggingface.co/docs/datasets)
-4. PyTorch Documentation: [https://pytorch.org/docs/stable/index.html](https://pytorch.org/docs/stable/index.html)
+1. Devlin, J., Chang, M.-W., Lee, K., & Toutanova, K. (2019). *BERT: Pre-training of Deep Bidirectional Transformers for Language Understanding.* Proceedings of NAACL-HLT 2019. (Also referenced as arXiv:1810.04805.)
+2. Hugging Face `transformers`: https://huggingface.co/docs/transformers  
+3. Hugging Face `datasets`: https://huggingface.co/docs/datasets  
+
+Original Google repo (TensorFlow): https://github.com/google-research/bert  
+
+---
 
 ## Acknowledgements
 
-This work was done as part of course re-implementation coursework.
+Project for **CS 5365** (Deep Learning), UTEP.

@@ -5,7 +5,7 @@ from dataclasses import dataclass
 class TrainConfig:
     model_name: str = "bert-base-uncased"
     dataset_name: str = "ag_news"
-    mode: str = "frozen"          # "frozen" | "finetune" | "both"
+    mode: str = "both"
     max_length: int = 128
     batch_size: int = 16
     learning_rate: float = 2e-5
